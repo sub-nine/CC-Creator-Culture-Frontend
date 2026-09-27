@@ -33,8 +33,7 @@ export async function api<T>(
   options: RequestInit = {},
 ): Promise<T> {
   const headers = new Headers(options.headers);
-  if (options.body && !(options.body instanceof FormData))
-    headers.set('Content-Type', 'application/json');
+  if (options.body) headers.set('Content-Type', 'application/json');
   let response: Response;
   try {
     response = await fetch(`/api/backend/${path}`, {

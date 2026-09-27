@@ -34,6 +34,7 @@ function reset(scenario = '') {
   state = {
     scenario,
     calls: [],
+    uploads: [],
     cart: [],
     orders: {},
     keys: {},
@@ -176,6 +177,26 @@ const server = http.createServer(async (req, res) => {
     return reply(ids);
   }
   if (url.pathname === '/__state') return reply(state);
+  // S3 presigned URL 대역. 브라우저가 다른 출처로 직접 PUT하므로 CORS 사전 요청에 응답한다.
+  if (url.pathname.startsWith('/__upload/')) {
+    const cors = {
+      'Access-Control-Allow-Origin': req.headers.origin ?? '*',
+      'Access-Control-Allow-Methods': 'PUT',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    };
+    if (method === 'OPTIONS') {
+      res.writeHead(204, cors);
+      return res.end();
+    }
+    for await (const chunk of req) void chunk;
+    state.uploads.push({
+      uploadId: url.pathname.slice('/__upload/'.length),
+      method,
+      contentType: req.headers['content-type'],
+    });
+    res.writeHead(state.scenario === 'upload-fail' ? 500 : 200, cors);
+    return res.end();
+  }
   let raw = Buffer.alloc(0);
   for await (const chunk of req) raw = Buffer.concat([raw, chunk]);
   let body = {};
@@ -246,20 +267,24 @@ const server = http.createServer(async (req, res) => {
       ),
     );
   if (path === 'products' && method === 'POST') {
-    const match = raw.toString().match(/\r\n\r\n(\{.*?\})\r\n/s);
-    if (match) {
-      const input = JSON.parse(match[1]);
-      state.product = {
-        ...state.product,
-        ...input,
-        skus: input.skus.map((s, i) => ({
-          ...s,
-          skuId: i ? ids.tag : ids.sku,
-        })),
-      };
-    }
+    state.product = {
+      ...state.product,
+      ...body,
+      skus: body.skus.map((s, i) => ({
+        ...s,
+        skuId: i ? ids.tag : ids.sku,
+      })),
+    };
     return reply({ productId: ids.product }, 201);
   }
+  if (path === 'images/presigned-url' && method === 'POST')
+    return reply(
+      {
+        uploadId: ids.item,
+        uploadUrl: `http://127.0.0.1:18181/__upload/${ids.item}`,
+      },
+      201,
+    );
   if (path === `products/${ids.product}`) {
     if (method === 'GET') return reply(state.product);
     if (method === 'PATCH') Object.assign(state.product, body);

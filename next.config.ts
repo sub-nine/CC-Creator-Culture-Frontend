@@ -18,7 +18,6 @@ const config: NextConfig = {
   env: {
     NEXT_PUBLIC_PRODUCT_IMAGE_ORIGINS: process.env.PRODUCT_IMAGE_ORIGINS ?? '',
   },
-  experimental: { proxyClientMaxBodySize: '30mb' },
   images: { remotePatterns },
   async headers() {
     return [

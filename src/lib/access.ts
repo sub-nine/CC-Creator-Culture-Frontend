@@ -16,6 +16,7 @@ const routes: [string, string, Role[] | null][] = [
   ['GET|PATCH', 'creators/me', creator],
   ['GET', 'creators/me/follower-count', creator],
   ['POST', 'products', creator],
+  ['POST', 'images/presigned-url', creator],
   ['PATCH|DELETE', `products/${id}`, creator],
   ['PATCH', `products/${id}/status`, creator],
   ['POST', `products/${id}/skus`, creator],

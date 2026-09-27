@@ -111,18 +111,34 @@ export function NewProduct() {
                 '이미지는 가로와 세로의 곱이 900만 픽셀 이하여야 해요.',
               );
           }
-          const body = new FormData();
-          body.append(
-            'request',
-            new Blob([JSON.stringify(result.data)], {
-              type: 'application/json',
-            }),
+          // 파일은 발급받은 S3 주소로 브라우저가 직접 올리고, 상품 등록에는 업로드 ID만 보낸다.
+          const imageUploadIds: string[] = [];
+          for (const file of files) {
+            const { uploadId, uploadUrl } = await api<{
+              uploadId: string;
+              uploadUrl: string;
+            }>(
+              'images/presigned-url',
+              json('POST', { contentType: file.type, fileSize: file.size }),
+            );
+            const uploaded = await fetch(uploadUrl, {
+              method: 'PUT',
+              headers: { 'Content-Type': file.type },
+              body: file,
+            }).then(
+              (response) => response.ok,
+              () => false,
+            );
+            if (!uploaded)
+              throw new Error(
+                '이미지를 올리지 못했어요. 잠시 후 다시 시도해 주세요.',
+              );
+            imageUploadIds.push(uploadId);
+          }
+          const created = await api<{ productId: string }>(
+            'products',
+            json('POST', { ...result.data, imageUploadIds }),
           );
-          files.forEach((file) => body.append('images', file));
-          const created = await api<{ productId: string }>('products', {
-            method: 'POST',
-            body,
-          });
           router.push(`/studio/products/${created.productId}`);
         } catch (e) {
           setError(message(e));

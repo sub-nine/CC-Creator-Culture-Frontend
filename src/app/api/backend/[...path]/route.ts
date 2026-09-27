@@ -37,7 +37,7 @@ async function handler(
     const headers = new Headers();
     const type = request.headers.get('content-type');
     if (type) {
-      if (!/^(application\/json|multipart\/form-data)/.test(type))
+      if (!/^application\/json/.test(type))
         throw new ApiError('지원하지 않는 요청 형식입니다.', 415);
       headers.set('Content-Type', type);
     }
@@ -50,8 +50,8 @@ async function handler(
     const body = ['GET', 'HEAD'].includes(request.method)
       ? undefined
       : await request.arrayBuffer();
-    if (body && body.byteLength > 30 * 1024 * 1024)
-      throw new ApiError('첨부 파일이 너무 커요.', 413);
+    if (body && body.byteLength > 1024 * 1024)
+      throw new ApiError('요청 내용이 너무 커요.', 413);
     const data = await gateway<unknown>(
       `${path}${request.nextUrl.search}`,
       { method: request.method, headers, body },

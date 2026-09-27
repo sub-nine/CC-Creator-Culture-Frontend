@@ -278,7 +278,7 @@ test('창작자는 상품과 옵션, 재고, 배송 상태를 관리한다', asy
       .body,
   ).toEqual({ quantity: 5 });
 });
-test('상품 등록은 JSON과 이미지를 multipart로 전송한다', async ({ page }) => {
+async function fillNewProduct(page: Page) {
   await login(page, 'creator');
   await page.goto('/studio/products/new');
   await page.getByLabel('상품명 *', { exact: true }).fill('새로운 드로잉 노트');
@@ -290,10 +290,53 @@ test('상품 등록은 JSON과 이미지를 multipart로 전송한다', async ({
     .getByLabel('JPG 또는 PNG, 최대 5개')
     .setInputFiles('tests/fixtures/upload.png');
   await page.getByRole('button', { name: '상품 등록', exact: true }).click();
+}
+test('상품 등록은 이미지를 먼저 올리고 업로드 ID를 JSON으로 전송한다', async ({
+  page,
+  request,
+}) => {
+  await fillNewProduct(page);
   await expect(page).toHaveURL(new RegExp(`studio/products/${product}$`));
   await expect(page.getByLabel('상품명 *', { exact: true })).toHaveValue(
     '새로운 드로잉 노트',
   );
+  const state = (
+    await (await request.get('http://127.0.0.1:18181/__state')).json()
+  ).data;
+  const presigned = state.calls.find(
+    (c: { path: string }) => c.path === 'images/presigned-url',
+  );
+  expect(presigned.body).toEqual({
+    contentType: 'image/png',
+    fileSize: expect.any(Number),
+  });
+  expect(state.uploads).toEqual([
+    { uploadId: item, method: 'PUT', contentType: 'image/png' },
+  ]);
+  const created = state.calls.find(
+    (c: { path: string; method: string }) =>
+      c.path === 'products' && c.method === 'POST',
+  );
+  expect(created.body.imageUploadIds).toEqual([item]);
+});
+test('이미지 업로드가 실패하면 상품 등록을 요청하지 않는다', async ({
+  page,
+  request,
+}) => {
+  await request.get('http://127.0.0.1:18181/__reset?scenario=upload-fail');
+  await fillNewProduct(page);
+  await expect(page.locator('p.error[role="alert"]')).toContainText(
+    '이미지를 올리지 못했어요.',
+  );
+  const state = (
+    await (await request.get('http://127.0.0.1:18181/__state')).json()
+  ).data;
+  expect(
+    state.calls.some(
+      (c: { path: string; method: string }) =>
+        c.path === 'products' && c.method === 'POST',
+    ),
+  ).toBe(false);
 });
 test('운영자는 분류를 승인하고 최고 관리자만 계정 생성 화면에 접근한다', async ({
   page,

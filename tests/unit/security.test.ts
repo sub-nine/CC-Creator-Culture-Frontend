@@ -16,6 +16,7 @@ describe('요청과 입력 경계', () => {
     expect(requiredRoles('creators/me', 'GET')).toEqual(['CREATOR']);
     expect(requiredRoles('products', 'GET')).toBeNull();
     expect(requiredRoles('products', 'POST')).toEqual(['CREATOR']);
+    expect(requiredRoles('images/presigned-url', 'POST')).toEqual(['CREATOR']);
     expect(requiredRoles('admin/managers', 'POST')).toEqual(['MASTER']);
     expect(requiredRoles('admin/orders/id', 'PATCH')).toBeUndefined();
   });
