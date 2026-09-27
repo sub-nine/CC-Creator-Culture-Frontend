@@ -21,9 +21,29 @@ pnpm dev
 | ----------------------- | ------------------------------------------------------------------------ |
 | `GATEWAY_URL`           | Next.js 서버에서 접근할 Gateway 주소. `/api/v1`을 붙이지 않음            |
 | `APP_ORIGIN`            | 브라우저로 접속하는 프론트 주소. 변경 요청의 출처 확인과 공유 URL에 사용 |
-| `PRODUCT_IMAGE_ORIGINS` | 이미지 최적화를 허용할 HTTPS 저장소 주소. 여러 주소는 쉼표로 구분        |
+| `PRODUCT_IMAGE_ORIGINS` | 이미지 최적화를 허용할 CloudFront HTTPS 주소. 여러 주소는 쉼표로 구분    |
 
 `localhost`와 `127.0.0.1`은 서로 다른 출처입니다. 접속 호스트나 포트를 바꾸면 `APP_ORIGIN`도 맞추고 서버를 재시작하세요. 운영 환경은 HTTPS 주소를 사용하고, 공유 URL 및 이미지 설정을 반영한 뒤 빌드해야 합니다. 허용 목록에 없는 상품 이미지는 최적화 프록시를 거치지 않고 원본으로 표시합니다.
+
+## 상품 이미지 업로드
+
+상품 이미지는 Next.js 서버를 거치지 않고 브라우저가 AWS S3에 직접 올립니다. 등록 화면은 파일마다 상품 서비스에서 10분 동안 유효한 업로드 주소를 받아 파일을 올린 뒤, 상품 등록 요청에는 업로드 ID만 담아 보냅니다. 올린 이미지는 CloudFront 주소로 표시합니다.
+
+```mermaid
+sequenceDiagram
+  participant B as 브라우저
+  participant N as Next.js 프록시
+  participant P as 상품 서비스
+  participant S as S3
+  B->>N: POST images/presigned-url
+  N->>P: 창작자 권한 확인 후 전달
+  P-->>B: uploadId, uploadUrl
+  B->>S: PUT uploadUrl
+  B->>N: POST products (imageUploadIds)
+  N->>P: 상품 등록
+```
+
+브라우저가 다른 출처인 S3로 직접 요청하므로 버킷 CORS에 프론트 주소를 허용해야 합니다. 허용 출처는 `APP_ORIGIN`과 같은 값, 메서드는 `PUT`, 헤더는 `Content-Type`입니다. 이 설정이 없으면 이미지를 첨부한 상품 등록만 실패하고, 이미지 없는 등록은 그대로 동작합니다. 등록이 중간에 실패해 남은 업로드 파일은 상품 서비스가 1시간 뒤 정리합니다.
 
 ## 화면
 
@@ -92,6 +112,6 @@ node scripts/seed-catalog.mjs --apply
 node scripts/seed-catalog.mjs --verify
 ```
 
-기본 실행은 파일만 검사합니다. `--apply`는 목적지가 고정된 `http://127.0.0.1:8080`의 기존 가입, 승인, 상품 등록 API를 사용합니다. 이미지는 로컬 상품 서비스에 설정된 R2 저장소로 업로드됩니다. 로컬 부하 테스트용 MASTER 계정을 사용하며 필요하면 `LOCAL_MASTER_EMAIL`, `LOCAL_MASTER_PASSWORD`로 변경할 수 있습니다.
+기본 실행은 파일만 검사합니다. `--apply`는 목적지가 고정된 `http://127.0.0.1:8080`의 기존 가입, 승인, 상품 등록 API를 사용합니다. 이미지는 로컬 상품 서비스가 발급한 업로드 주소로 S3 버킷에 올라가며, 로컬 Gateway의 `/api/v1/images/**` 경로가 상품 서비스로 연결되어 있어야 합니다. 로컬 부하 테스트용 MASTER 계정을 사용하며 필요하면 `LOCAL_MASTER_EMAIL`, `LOCAL_MASTER_PASSWORD`로 변경할 수 있습니다.
 
 새 창작자 계정의 임의 비밀번호와 등록된 ID는 Git에서 제외되는 `.local/catalog-state.json`에 저장합니다. 이 파일은 공유하지 마세요. 같은 상태 파일로 다시 실행하면 등록된 상품을 건너뜁니다. `--verify`는 상품 설명, SKU 가격과 이미지 응답을 검사합니다. 기존 상품과 주문은 변경하지 않았으므로 뒤쪽 페이지나 검색에는 기존 부하 테스트 상품이 남아 있습니다.
