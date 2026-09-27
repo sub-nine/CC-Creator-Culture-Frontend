@@ -45,7 +45,7 @@ if (!mode) {
 async function request(path, { method = 'GET', body, token } = {}) {
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
-  if (body && !(body instanceof FormData)) {
+  if (body) {
     headers['Content-Type'] = 'application/json';
     body = JSON.stringify(body);
   }
@@ -134,40 +134,40 @@ if (mode === '--apply') {
       await save();
       continue;
     }
-    const body = new FormData();
-    body.append(
-      'request',
-      new Blob(
-        [
-          JSON.stringify({
-            name: product.name,
-            content: product.content,
-            hashTags: product.hashTags,
-            skus: product.options.map(([name, price, quantity], index) => ({
-              name,
-              price,
-              quantity,
-              isDefault: index === 0,
-            })),
-          }),
-        ],
-        { type: 'application/json' },
-      ),
-      'request.json',
+    const image = await readFile(
+      new URL(`public/images/catalog/${product.slug}.png`, root),
     );
-    body.append(
-      'images',
-      new Blob(
-        [
-          await readFile(
-            new URL(`public/images/catalog/${product.slug}.png`, root),
-          ),
-        ],
-        { type: 'image/png' },
-      ),
-      `${product.slug}.png`,
+    const { uploadId, uploadUrl } = await request('images/presigned-url', {
+      method: 'POST',
+      token,
+      body: { contentType: 'image/png', fileSize: image.length },
+    });
+    const uploaded = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'image/png' },
+      body: image,
+      signal: AbortSignal.timeout(60000),
+    });
+    assert(
+      uploaded.ok,
+      `${product.name} 이미지 업로드 실패: HTTP ${uploaded.status}`,
     );
-    const result = await request('products', { method: 'POST', token, body });
+    const result = await request('products', {
+      method: 'POST',
+      token,
+      body: {
+        name: product.name,
+        content: product.content,
+        hashTags: product.hashTags,
+        skus: product.options.map(([name, price, quantity], index) => ({
+          name,
+          price,
+          quantity,
+          isDefault: index === 0,
+        })),
+        imageUploadIds: [uploadId],
+      },
+    });
     state.products[product.slug] = result.productId;
     await save();
     console.log(`등록 완료: ${product.name}`);
