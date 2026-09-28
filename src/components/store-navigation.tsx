@@ -10,11 +10,41 @@ const links = [
   ['/creators', '창작자'],
   ['/coupons', '쿠폰 혜택'],
 ];
-const categories = [
-  { title: '문구 / 아트', items: ['노트', '스티커', '아트 프린트'] },
-  { title: '패션 / 패브릭', items: ['캔버스 백', '파우치', '쿠션'] },
-  { title: '리빙', items: ['머그', '트레이', '화병'] },
-  { title: '오브제 / 소품', items: ['문진', '키링', '인센스 홀더'] },
+const searchHref = (keyword: string) =>
+  `/products?keyword=${encodeURIComponent(keyword)}`;
+const fallbackCategories = [
+  {
+    title: '문구 / 아트',
+    items: [
+      { href: searchHref('노트'), label: '노트' },
+      { href: searchHref('스티커'), label: '스티커' },
+      { href: searchHref('아트 프린트'), label: '아트 프린트' },
+    ],
+  },
+  {
+    title: '패션 / 패브릭',
+    items: [
+      { href: searchHref('캔버스 백'), label: '캔버스 백' },
+      { href: searchHref('파우치'), label: '파우치' },
+      { href: searchHref('쿠션'), label: '쿠션' },
+    ],
+  },
+  {
+    title: '리빙',
+    items: [
+      { href: searchHref('머그'), label: '머그' },
+      { href: searchHref('트레이'), label: '트레이' },
+      { href: searchHref('화병'), label: '화병' },
+    ],
+  },
+  {
+    title: '오브제 / 소품',
+    items: [
+      { href: searchHref('문진'), label: '문진' },
+      { href: searchHref('키링'), label: '키링' },
+      { href: searchHref('인센스 홀더'), label: '인센스 홀더' },
+    ],
+  },
 ];
 const collections = [
   {
@@ -46,17 +76,32 @@ const collections = [
     tone: 'cream',
   },
 ];
-const searchHref = (keyword: string) =>
-  `/products?keyword=${encodeURIComponent(keyword)}`;
 export function StoreNavigation({
   workspaceHref,
   workspaceLabel,
+  categories,
 }: {
   workspaceHref: string;
   workspaceLabel: string;
+  categories: { href: string; label: string }[];
 }) {
   const pathname = usePathname();
   const menu = useRef<HTMLDetailsElement>(null);
+  const visibleCategories = categories.slice(0, 16);
+  const hasMoreCategories = categories.length > visibleCategories.length;
+  const categoryGroups = categories.length
+    ? [
+        {
+          title: '카테고리',
+          items: [
+            ...visibleCategories,
+            ...(hasMoreCategories
+              ? [{ href: '/products', label: '전체 카테고리 →' }]
+              : []),
+          ],
+        },
+      ]
+    : fallbackCategories;
   return (
     <nav className="navigation" aria-label="주요 메뉴">
       <details
@@ -108,14 +153,16 @@ export function StoreNavigation({
                   </Link>
                 ))}
               </section>
-              {categories.map(({ title, items }) => (
-                <section className="browse-column" key={title}>
+              {categoryGroups.map(({ title, items }) => (
+                <section className="browse-column browse-category-column" key={title}>
                   <h3>{title}</h3>
-                  {items.map((keyword) => (
-                    <Link key={keyword} href={searchHref(keyword)}>
-                      {keyword}
-                    </Link>
-                  ))}
+                  <div className="browse-category-grid">
+                    {items.map((item) => (
+                      <Link key={item.href} href={item.href}>
+                        {item.label}
+                      </Link>
+                    ))}
+                  </div>
                 </section>
               ))}
               <section className="browse-column">
