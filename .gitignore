@@ -9,3 +9,11 @@ test-results/
 docs/
 
 .local/
+
+# AI 도구 설정
+AGENTS.md
+CLAUDE.md
+.cursor/
+.agents/
+.claude/
+.codex/
