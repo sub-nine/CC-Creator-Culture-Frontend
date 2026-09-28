@@ -6,10 +6,20 @@ import {
   Heart,
   ArrowUpRight,
 } from 'lucide-react';
-import { currentUser } from '@/lib/server';
+import { currentUser, safeGateway } from '@/lib/server';
+import type { Category, Page } from '@/lib/types';
 import { StoreNavigation } from './store-navigation';
 export async function Header() {
   const user = await currentUser().catch(() => null);
+  const categoryResponse = await safeGateway<Page<Category>>(
+    'categories?size=30&page=0',
+  );
+  const categoryLinks = (categoryResponse.data?.content ?? [])
+    .slice(0, 18)
+    .map((category) => ({
+      href: `/products?keyword=${encodeURIComponent(category.name)}`,
+      label: category.name,
+    }));
   const workspace =
     user?.role === 'CREATOR'
       ? { href: '/studio/products', label: '창작자 센터' }
@@ -76,6 +86,7 @@ export async function Header() {
           <StoreNavigation
             workspaceHref={workspace.href}
             workspaceLabel={workspace.label}
+            categories={categoryLinks}
           />
         </div>
       </header>

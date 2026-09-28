@@ -1,6 +1,6 @@
 'use client';
 import Image from 'next/image';
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -305,27 +305,13 @@ function WishlistToggle({
   productId: string;
   signedIn: boolean;
 }) {
-  const [wished, setWished] = useState(false);
-  const [wishlistId, setWishlistId] = useState<string | null>(null);
-  const ready = useRef(false);
-  const wishlistIdRef = useRef<string | null>(null);
   const client = useQueryClient();
   const wishlist = useResource<Page<Wishlist>>('wishlist?pageNum=0', signedIn);
-  wishlistIdRef.current = wishlistId;
-  useEffect(() => {
-    ready.current = false;
-    setWished(false);
-    setWishlistId(null);
-  }, [productId]);
-  useEffect(() => {
-    if (!wishlist.isSuccess || ready.current) return;
-    const item = wishlist.data.content.find(
-      (entry) => entry.productId === productId,
-    );
-    setWished(!!item);
-    setWishlistId(item?.wishlistId ?? null);
-    ready.current = true;
-  }, [productId, wishlist.data, wishlist.isSuccess]);
+  const currentItem = wishlist.isSuccess
+    ? wishlist.data.content.find((entry) => entry.productId === productId) ?? null
+    : null;
+  const wishlistId = currentItem?.wishlistId ?? null;
+
   const wish = useMutation({
     mutationFn: async (on: boolean) => {
       if (on) {
@@ -338,7 +324,8 @@ function WishlistToggle({
               ?.wishlistId ?? null,
         };
       }
-      let id = wishlistIdRef.current;
+
+      let id = wishlistId;
       if (!id) {
         const page = await api<Page<Wishlist>>('wishlist?pageNum=0');
         id =
@@ -348,22 +335,13 @@ function WishlistToggle({
       if (id) await api('wishlist', json('DELETE', [id]));
       return { on, id: null };
     },
-    onMutate: (on) => {
-      const prev = { wished, wishlistId };
-      setWished(on);
-      return prev;
-    },
-    onError: (_error, _on, prev) => {
-      if (!prev) return;
-      setWished(prev.wished);
-      setWishlistId(prev.wishlistId);
-    },
-    onSuccess: (result) => {
-      setWished(result.on);
-      setWishlistId(result.id);
+    onSuccess: () => {
       client.invalidateQueries({ queryKey: ['wishlist?pageNum=0'] });
     },
   });
+
+  const wished = wish.isPending ? Boolean(wish.variables) : Boolean(currentItem);
+
   return (
     <>
       <button
